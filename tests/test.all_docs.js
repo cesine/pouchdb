@@ -67,6 +67,11 @@
 
   asyncTest('Testing deleting in changes', function() {
     Pouch(this.name, function(err, db) {
+      if (err) {
+        console.error(err);
+        ok(false, 'failed to open database');
+        return start();
+      }
       db.get('1', function(err, doc) {
         db.remove(doc, function(err, deleted) {
           ok(deleted.ok, 'deleted');
@@ -83,6 +88,11 @@
 
   asyncTest('Testing updating in changes', function() {
     Pouch(this.name, function(err, db) {
+      if (err) {
+        console.error(err);
+        ok(false, 'failed to open database');
+        return start();
+      }
       db.get('3', function(err, doc) {
         doc.updated = 'totally';
         db.put(doc, function(err, doc) {
@@ -98,6 +108,11 @@
 
   asyncTest('Testing include docs', function() {
     Pouch(this.name, function(err, db) {
+      if (err) {
+        console.error(err);
+        ok(false, 'failed to open database');
+        return start();
+      }
       db.changes({include_docs: true}, function(err, changes) {
         ok(changes.results.length == 4);
         ok(changes.results[3].id == "3");
@@ -111,6 +126,11 @@
 
   asyncTest('Testing conflicts', function() {
     Pouch(this.name, function(err, db) {
+      if (err) {
+        console.error(err);
+        ok(false, 'failed to open database');
+        return start();
+      }
       // add conflicts
       var conflictDoc1 = {
         _id: "3", _rev: "2-aa01552213fafa022e6167113ed01087", value: "X"
@@ -127,22 +147,22 @@
               ok(3 === changes.results[3].changes.length, 'correct number of changes');
               ok(winRev._rev === changes.results[3].changes[0].rev,
                  'correct winning revision');
-              ok("3" === changes.results[3].doc._id, 'correct doc id');
-              ok(winRev._rev === changes.results[3].doc._rev,
+              equal("3", changes.results[3].doc._id, 'correct doc id');
+              equal(winRev._rev, changes.results[3].doc._rev,
                  'include doc has correct rev');
-              ok(true === changes.results[3].doc._conflicts instanceof Array,
+              equal(true, changes.results[3].doc._conflicts instanceof Array,
                  'include docs contains conflicts');
               ok(changes.results[3].doc._conflicts &&
                  2 === changes.results[3].doc._conflicts.length,
                  'correct number of changes');
               db.allDocs({include_docs: true, conflicts: true}, function(err, res) {
-                ok(3 === res.rows.length, 'correct number of changes');
-                ok("3" === res.rows[2].key, 'correct key');
-                ok("3" === res.rows[2].id, 'correct id');
-                ok(winRev._rev === res.rows[2].value.rev, 'correct rev');
-                ok(winRev._rev === res.rows[2].doc._rev, 'correct rev');
-                ok("3" === res.rows[2].doc._id, 'correct order');
-                ok(true === res.rows[2].doc._conflicts instanceof Array);
+                equal(3, res.rows.length, 'correct number of changes');
+                equal("3", res.rows[2].key, 'correct key');
+                equal("3", res.rows[2].id, 'correct id');
+                equal(res.rows[2].value.rev, winRev._rev, 'correct rev');
+                equal(res.rows[2].doc._rev, winRev._rev, 'correct rev');
+                equal("3", res.rows[2].doc._id, 'correct order');
+                ok(res.rows[2].doc._conflicts instanceof Array);
                 ok(res.rows[2].doc._conflicts && 2 === res.rows[2].doc._conflicts.length);
                 start();
               });

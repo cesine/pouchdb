@@ -32,16 +32,25 @@
         continuous: continuous,
         since: checkpoint,
         onChange: function(change) {
+          last_seq = change.seq;
           results.push(change);
           result.docs_read++;
           pending++;
           var diff = {};
           diff[change.id] = change.changes.map(function(x) { return x.rev; });
           target.revsDiff(diff, function(err, diffs) {
+            if (Object.keys(diffs).length === 0) {
+              pending--;
+              isCompleted();
+              return;
+            }
             for (var id in diffs) {
               diffs[id].missing.map(function(rev) {
                 src.get(id, {revs: true, rev: rev, attachments: true}, function(err, doc) {
                   target.bulkDocs({docs: [doc]}, {new_edits: false}, function() {
+                    if (opts.onChange) {
+                      opts.onChange.apply(this, [result]);
+                    }
                     result.docs_written++;
                     pending--;
                     isCompleted();
@@ -52,9 +61,6 @@
           });
         },
         complete: function(err, res) {
-          if (res) {
-            last_seq = res.last_seq;
-          }
           completed = true;
           isCompleted();
         }
