@@ -63,4 +63,30 @@
 
   });
 
+  asyncTest("Test put attachment on a doc without attachments", function() {
+    initTestDB(this.name, function(err, db) {
+      db.put({ _id: 'mydoc' }, function(err, resp) {
+        db.putAttachment('mydoc/mytext', resp.rev, 'Mytext', 'text/plain', function(err, res) {
+          ok(res.ok);
+          start();
+        })
+      });
+    });
+  });
+
+  asyncTest("Test remove doc with attachment", function() {
+    initTestDB(this.name, function(err, db) {
+      db.put({ _id: 'mydoc' }, function(err, resp) {
+        db.putAttachment('mydoc/mytext', resp.rev, 'Mytext', 'text/plain', function(err, res) {
+          db.get('mydoc',{attachments:false},function(err,doc){
+            db.remove(doc, function(err, resp){
+              ok(res.ok);
+              start();
+            });
+          });
+        });
+      });
+    });
+  });
+
 });

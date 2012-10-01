@@ -31,6 +31,7 @@
   });
 
   asyncTest("Modify a doc", function() {
+    console.info('testing: Modify a doc');
     initTestDB(this.name, function(err, db) {
       ok(!err, 'opened the pouch');
       db.post({test: "somestuff"}, function (err, info) {
@@ -64,6 +65,20 @@
           ok(doc.test);
           db.get(info.id+'asdf', function(err) {
             ok(err.error);
+            start();
+          });
+        });
+      });
+    });
+  });
+
+  asyncTest("Get revisions of removed doc", function() {
+    initTestDB(this.name, function(err, db) {
+      db.post({test:"somestuff"}, function(err, info) {
+        var rev = info.rev;
+        db.remove({test:"somestuff", _id:info.id, _rev:info.rev}, function(doc) {
+          db.get(info.id, {rev: rev}, function(err, doc) {
+            ok(!err, 'Recieved deleted doc with rev');
             start();
           });
         });
@@ -118,6 +133,29 @@
     });
   });
 
+  asyncTest("Sync a doc", function() {
+    var couch = generateAdapterUrl('http-2');
+    initTestDB(this.name, function(err, db) {
+      ok(!err, 'opened the pouch');
+      initTestDB(couch, function(err, db2) {
+        ok(!err, 'opened the couch');
+        db.put({_id:"adoc", test:"somestuff"}, function (err, info) {
+          ok(!err, 'saved a doc with post');
+          db.replicate.to(couch, function(err, info) {
+            ok(!err, 'replicated pouch to couch');
+            db.replicate.from(couch, function(err, info) {
+              ok(!err, 'replicated couch back to pouch');
+              db.get("adoc", {conflicts:true}, function(err, doc) {
+                ok(!doc._conflicts, 'doc has no conflicts');
+                start();
+              });
+            });
+          });
+        });
+      })
+    });
+  });
+
   asyncTest("Check revisions", function() {
     initTestDB(this.name, function(err, db) {
       db.post({test: "somestuff"}, function (err, info) {
@@ -146,17 +184,22 @@
   asyncTest("Basic checks", function() {
     initTestDB(this.name, function(err, db) {
       db.info(function(err, info) {
-        ok(info.doc_count === 0);
+        var updateSeq = info.update_seq;
         var doc = {_id: '0', a: 1, b:1};
+        ok(info.doc_count === 0);
         db.put(doc, function(err, res) {
           ok(res.ok === true);
           ok(res.id);
           ok(res.rev);
-          db.get(doc._id, function(err, doc) {
-            ok(doc._id === res.id && doc._rev === res.rev);
-            db.get(doc._id, {revs_info: true}, function(err, doc) {
-              ok(doc._revs_info[0].status === 'available');
-              start();
+          db.info(function(err, info) {
+            ok(info.doc_count === 1);
+            equal(info.update_seq, updateSeq + 1, 'update seq incremented');
+            db.get(doc._id, function(err, doc) {
+              ok(doc._id === res.id && doc._rev === res.rev);
+              db.get(doc._id, {revs_info: true}, function(err, doc) {
+                ok(doc._revs_info[0].status === 'available');
+                start();
+              });
             });
           });
         });
@@ -165,13 +208,14 @@
   });
 
   asyncTest("Testing Rev format", function() {
+    console.info('testing: Rev format');
     var revs = [];
     initTestDB(this.name, function(err, db) {
       db.post({test: "somestuff"}, function (err, info) {
         revs.unshift(info.rev.split('-')[1]);
-        db.put({_id: info.id, _rev: info.rev, another: 'test'}, function(err, info2) {
+        db.put({_id: info.id, _rev: info.rev, another: 'test1'}, function(err, info2) {
           revs.unshift(info2.rev.split('-')[1]);
-          db.put({_id: info.id, _rev: info2.rev, last: 'test'}, function(err, info3) {
+          db.put({_id: info.id, _rev: info2.rev, last: 'test2'}, function(err, info3) {
             revs.unshift(info3.rev.split('-')[1]);
             db.get(info.id, {revs:true}, function(err, doc) {
               ok(doc._revisions.start === 3, 'correct starting position');
@@ -200,9 +244,8 @@
           }
         });
       };
-      timer = setInterval(save, 500);
+      timer = setInterval(save, 50);
     });
-
   });
 
   asyncTest("Testing valid id", function() {
@@ -213,5 +256,4 @@
       });
     });
   });
-
 });
