@@ -76,6 +76,26 @@
     });
   });
 
+  asyncTest("Test basic push replication sequence tracking", function() {
+    console.info('Starting Test: Test basic push replication sequence tracking');
+    var self = this;
+    initDBPair(this.name, this.remote, function(db, remote) {
+      var doc1 = {_id: 'adoc', foo:'bar'};
+      db.put(doc1, function(err, result) {
+        db.replicate.to(self.remote, function(err, result) {
+          ok(result.docs_read === 1, 'correct # changed docs read (1) on first replication');
+          db.replicate.to(self.remote, function(err, result) {
+            ok(result.docs_read === 0, 'correct # changed docs read (0) on second replication');
+            db.replicate.to(self.remote, function(err, result) {
+              ok(result.docs_read === 0, 'correct # changed docs read (0) on third replication');
+              start();
+            });
+          });
+        });
+      });
+    });
+  });
+
   asyncTest("Test checkpoint", function() {
     console.info('Starting Test: Test checkpoint');
     var self = this;
@@ -244,7 +264,10 @@
         var rep = remote.replicate.from(db, {continuous: true});
         var changes = remote.changes({
           onChange: function(change) {
-            ++count;
+            ++count
+            if (count === 3) {
+              return db.put(doc1);
+            }
             if (count === 4) {
               ok(true, 'Got all the changes');
               rep.cancel();
@@ -254,9 +277,6 @@
           },
           continuous: true,
         });
-        setTimeout(function() {
-          db.put(doc1, {});
-        }, 50);
       });
     });
   });
@@ -280,6 +300,7 @@
             if (count === 4) {
               replicate.cancel();
               remote.put(doc2);
+              // This setTimeout is needed to ensure no further changes come through
               setTimeout(function() {
                 ok(count === 4, 'got no more docs');
                 changes.cancel();
@@ -304,53 +325,19 @@
     initDBPair(this.name, this.remote, function(db, remote) {
       remote.bulkDocs({docs: docs1}, function(err, info) {
         var replicate = db.replicate.from(remote, {
-          continuous: true,
           filter: function(doc) { return doc.integer % 2 === 0; }
-        });
-        setTimeout(function() {
+        }, function() {
           db.allDocs(function(err, docs) {
             equal(docs.rows.length, 2);
             replicate.cancel();
             start();
           });
-        }, 500);
-      });
-    });
-  });
-
-  asyncTest("Attachments replicate", function() {
-    console.info('Starting Test: Attachments replicate');
-
-    var binAttDoc = {
-      _id: "bin_doc",
-      _attachments:{
-        "foo.txt": {
-          content_type:"text/plain",
-          data: "VGhpcyBpcyBhIGJhc2U2NCBlbmNvZGVkIHRleHQ="
-        }
-      }
-    };
-
-    var docs1 = [
-      binAttDoc,
-      {_id: "0", integer: 0},
-      {_id: "1", integer: 1},
-      {_id: "2", integer: 2},
-      {_id: "3", integer: 3}
-    ];
-
-    initDBPair(this.name, this.remote, function(db, remote) {
-      remote.bulkDocs({docs: docs1}, function(err, info) {
-        var replicate = db.replicate.from(remote, function() {
-          db.get('bin_doc', {attachments: true}, function(err, doc) {
-            equal(binAttDoc._attachments['foo.txt'].data,
-                  doc._attachments['foo.txt'].data);
-            start();
-          });
         });
       });
     });
   });
+
+
 
 
   asyncTest("Replication with deleted doc", function() {
@@ -394,6 +381,25 @@
       });
     });
   });
+});
 
+// This test only needs to run for one configuration, and it slows stuff
+// down
+['idb-1'].map(function(adapter) {
 
+  module('replication: ' + adapter, {
+    setup : function () {
+      this.name = generateAdapterUrl(adapter);
+    }
+  });
+
+  asyncTest("replicate from down server test", function (){
+    expect(1);
+    initTestDB(this.name, function(err, db) {
+      db.replicate.to('http://10.1.1.1:1234/store', function (err, changes) {
+        ok(err);
+        start();
+      });
+    });
+  });
 });

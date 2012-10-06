@@ -1,3 +1,5 @@
+var HTTP_TIMEOUT = 10000;
+
 // parseUri 1.2.2
 // (c) Steven Levithan <stevenlevithan.com>
 // MIT License
@@ -86,6 +88,7 @@ function genUrl(opts, path) {
 
 function ajax(options, callback) {
   var defaults = {
+    timeout: HTTP_TIMEOUT,
     success: function (obj, _, xhr) {
       call(callback, null, obj, xhr);
     },
@@ -407,6 +410,9 @@ var HttpPouch = function(opts, callback) {
     if (opts instanceof Function) {
       callback = opts;
       opts = {};
+    }
+    if (!opts) {
+      opts = {}
     }
 
     // If opts.new_edits exists add it to the document data to be
